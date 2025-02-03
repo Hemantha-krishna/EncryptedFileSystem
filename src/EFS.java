@@ -1,8 +1,8 @@
 
 /**
- * @author <Your Name>
- * @netid <NetID>
- * @email <Email Address>
+ * @author Hemantha Krishna Challa
+ * @netid hxc230046
+ * @email hxc230046@utdallas.edu
  */
 public class EFS extends Utility{
 
