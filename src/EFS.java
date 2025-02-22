@@ -1,10 +1,31 @@
-
 /**
  * @author Hemantha Krishna Challa
  * @netid hxc230046
  * @email hxc230046@utdallas.edu
  */
+
+import javax.crypto.*;
+import javax.crypto.spec.*;
+import java.nio.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import java.io.*;
+
 public class EFS extends Utility{
+
+    private static final int BLOCK_SIZE = 1024;
+    private static final int SALT_SIZE = 16;
+    private static final int FEK_SIZE = 16; //FEk = File Encryption Key
+    private static final int MK_SIZE = 16; //MK = Metadata Key
+    private static final int NONCE_SIZE = 8;
+    private static final int MAC_SIZE = 32; // HMAC-SHA256
+    private static final int USERNAME_MAX = 128;
+    private static final int PBKDF2_ITERATIONS = 100000;
+    private static final int DATA_PER_BLOCK = BLOCK_SIZE - MAC_SIZE;
+    
 
     public EFS(Editor e)
     {
@@ -24,6 +45,44 @@ public class EFS extends Utility{
      */
     @Override
     public void create(String file_name, String user_name, String password) throws Exception {
+        
+        Path directory = Paths.get(file_name);
+        Files.createDirectories(directory);
+        
+        Path meta_path=directory.resolve("0");
+        if(Files.exists(meta_path))
+        {
+            throw new Exception("File already exists");
+        }
+
+        SecureRandom random = SecureRandom.getInstanceStrong();
+        byte[] salt = new byte[SALT_SIZE];
+        random.nextBytes(salt);
+
+        byte[] mk = new byte[MK_SIZE];
+        random.nextBytes(mk);
+
+        byte[] nonce = new byte[NONCE_SIZE];
+        random.nextBytes(nonce);
+
+        byte[] fek = new byte[FEK_SIZE];
+        random.nextBytes(fek);
+
+        //Getting Key Encryption Key(KEK) from password. KEK is the master Key
+        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2_With_HmacSHA256");
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, 128);
+        SecretKey tmp = factory.generateSecret(spec);
+        SecretKeySpec kek = new SecretKeySpec(tmp.getEncoded(), "AES");
+
+        //Encrypting the File Encryption Key(FEK) and Metadata Key(MK) using KEK
+        Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, kek);
+        byte[] encryptedKeys = cipher.doFinal(ByteBuffer.allocate(FEK_SIZE + MK_SIZE).put(fek).put(mk).array());
+
+        //Metadata 
+        ByteArrayOutputStream metadata = new ByteArrayOutputStream();
+        metadata.write(Arrays.copyOf(user_name.getBytes(StandardCharsets.UTF_8), USERNAME_MAX));
+
     }
 
     /**
