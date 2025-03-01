@@ -190,7 +190,7 @@ public class EFS extends Utility{
             int block_offset=pos%DATA_PER_BLOCK;
             int write_len=Math.min(rem,DATA_PER_BLOCK-block_offset);
 
-            byte[] existing_data=new byte[BLOCK_SIZE];
+            byte[] existing_data=new byte[DATA_PER_BLOCK];
             if(block_num<=(meta.file_length+DATA_PER_BLOCK-1)/DATA_PER_BLOCK)
             {
                 Path block_path=Paths.get(file_name,Integer.toString(block_num));
