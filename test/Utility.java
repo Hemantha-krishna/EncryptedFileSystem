@@ -45,7 +45,7 @@ public abstract class Utility {
     public abstract void cut(String file_name, int len, String password) throws Exception;
 
     public void set_username_password() {
-        /*JPanel loginPanel = new JPanel();
+       /* JPanel loginPanel = new JPanel();
         loginPanel.setLayout(new java.awt.GridLayout(2, 2));
 
         JLabel username_tag = new JLabel();
