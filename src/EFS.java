@@ -175,7 +175,9 @@ public class EFS extends Utility{
      *  - ### main procedure for update the encrypted content ### <p>
      *  - compute new HMAC and update metadata 
      */
-    @Override
+    
+     
+     @Override
     public void write(String file_name, int starting_position, byte[] content, String password) throws Exception {
     
         Metadata meta=validate_pwd(file_name,password);
@@ -220,6 +222,79 @@ public class EFS extends Utility{
             update_metadata(file_name,password,len2,meta);
         }
     }
+    
+
+    /*@Override
+public void write(String file_name, int starting_position, byte[] content, String password) throws Exception {
+    Metadata meta = validate_pwd(file_name, password);
+    int new_length = Math.max(meta.file_length, starting_position + content.length);
+
+    File root = new File(file_name);
+    int start_block = starting_position / DATA_PER_BLOCK;
+    int end_block = (starting_position + content.length - 1) / DATA_PER_BLOCK;
+
+    // 1. Initialize all required blocks
+    for (int block_num = start_block + 1; block_num <= end_block + 1; block_num++) {
+        Path block_path = Paths.get(file_name, Integer.toString(block_num));
+        
+        if (!Files.exists(block_path)) {
+            // Create empty encrypted block
+            byte[] empty_data = new byte[DATA_PER_BLOCK];
+            byte[] encrypted = encrypt(empty_data, block_num, meta.fek, meta.nonce);
+            byte[] mac = compute_mac(encrypted, block_num, meta.mk);
+            Files.write(block_path, ByteBuffer.allocate(BLOCK_SIZE)
+                .put(mac)
+                .put(encrypted)
+                .array());
+        }
+    }
+
+    // 2. Write content block-by-block
+    int pos = starting_position;
+    int content_offset = 0;
+    int remaining = content.length;
+
+    while (remaining > 0) {
+        int block_num = 1 + (pos / DATA_PER_BLOCK);
+        int block_offset = pos % DATA_PER_BLOCK;
+        int write_len = Math.min(remaining, DATA_PER_BLOCK - block_offset);
+
+        Path block_path = Paths.get(file_name, Integer.toString(block_num));
+        
+        // Read and decrypt existing block
+        byte[] block_data = Files.readAllBytes(block_path);
+        verify_mac(block_data, block_num, meta.mk);
+        byte[] plaintext = decrypt(
+            Arrays.copyOfRange(block_data, MAC_SIZE, BLOCK_SIZE),
+            block_num, meta.fek, meta.nonce
+        );
+
+        // Modify content
+        System.arraycopy(
+            content, content_offset,
+            plaintext, block_offset,
+            write_len
+        );
+
+        // Re-encrypt and save
+        byte[] encrypted = encrypt(plaintext, block_num, meta.fek, meta.nonce);
+        byte[] mac = compute_mac(encrypted, block_num, meta.mk);
+        Files.write(block_path, ByteBuffer.allocate(BLOCK_SIZE)
+            .put(mac)
+            .put(encrypted)
+            .array());
+
+        pos += write_len;
+        content_offset += write_len;
+        remaining -= write_len;
+    }
+
+    // 3. Update metadata if file expanded
+    if (new_length > meta.file_length) {
+        update_metadata(file_name, password, new_length, meta);
+    }
+}
+    */
 
     /**
      * Steps to consider...:<p>
