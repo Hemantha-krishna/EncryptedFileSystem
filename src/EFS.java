@@ -151,7 +151,7 @@ ByteArrayOutputStream metadata = new ByteArrayOutputStream();
             verify_mac(block_data,block_num,meta.mk);
 
             //Decryption
-            byte[] plaintext = decrypt_AES(Arrays.copyOfRange(block_data,MAC_SIZE,BLOCK_SIZE),block_num,meta.fek,meta.nonce);
+            byte[] plaintext = decryptCTR(Arrays.copyOfRange(block_data,MAC_SIZE,BLOCK_SIZE),block_num,meta.fek,meta.nonce);
 
             result.write(plaintext,block_offset,read_len);
             pos+=read_len;
@@ -193,11 +193,11 @@ ByteArrayOutputStream metadata = new ByteArrayOutputStream();
                 {
                     byte[] block_data=Files.readAllBytes(block_path);
                     verify_mac(block_data,block_num,meta.mk);
-                    existing_data=decrypt_AES(Arrays.copyOfRange(block_data,MAC_SIZE,BLOCK_SIZE),block_num,meta.fek,meta.nonce);
+                    existing_data=decryptCTR(Arrays.copyOfRange(block_data,MAC_SIZE,BLOCK_SIZE),block_num,meta.fek,meta.nonce);
                 }
             }
             System.arraycopy(content, content_offset, existing_data, block_offset, write_len);
-            byte[] new_block=encrypt_AES(existing_data,block_num,meta.fek,meta.nonce);
+            byte[] new_block=encryptCTR(existing_data,block_num,meta.fek,meta.nonce);
             byte[] mac=compute_mac(new_block,block_num,meta.mk);
 
             ByteArrayOutputStream block_data=new ByteArrayOutputStream();
@@ -262,7 +262,7 @@ ByteArrayOutputStream metadata = new ByteArrayOutputStream();
             int newblocks=(length+DATA_PER_BLOCK-1)/DATA_PER_BLOCK;
             int oldblocks=(meta.file_length+DATA_PER_BLOCK-1)/DATA_PER_BLOCK;
 
-            // Remove e_AESa blocks
+            // Remove ectra blocks
             for(int i=newblocks+1;i<=oldblocks;i++)
             {
                 Files.delete(Paths.get(file_name,Integer.toString(i)));
@@ -275,14 +275,14 @@ ByteArrayOutputStream metadata = new ByteArrayOutputStream();
                 byte[] block_data=Files.readAllBytes(block_path);
                 verify_mac(block_data,newblocks,meta.mk);
                 
-                byte[] plaintext=decrypt_AES(Arrays.copyOfRange(block_data,MAC_SIZE,BLOCK_SIZE),newblocks,meta.fek,meta.nonce);
+                byte[] plaintext=decryptCTR(Arrays.copyOfRange(block_data,MAC_SIZE,BLOCK_SIZE),newblocks,meta.fek,meta.nonce);
                 
                 int newsize=length % DATA_PER_BLOCK;
                 byte[] truncated_block=Arrays.copyOf(plaintext,newsize);
 
                 byte[] padded_block = Arrays.copyOf(truncated_block, DATA_PER_BLOCK);
 
-                byte[] encrypted_block=encrypt_AES(padded_block,newblocks,meta.fek,meta.nonce);
+                byte[] encrypted_block=encryptCTR(padded_block,newblocks,meta.fek,meta.nonce);
                 byte[] mac=compute_mac(encrypted_block,newblocks,meta.mk);
                 
 
@@ -426,7 +426,7 @@ ByteArrayOutputStream metadata = new ByteArrayOutputStream();
         return hash_SHA256(ByteBuffer.wrap(opad).put(inner).array());
     }
 
-    private byte[] decrypt_AES(byte[] ciphertext, int block_num, byte[] fek, byte[] nonce) throws Exception {
+    private byte[] decryptCTR(byte[] ciphertext, int block_num, byte[] fek, byte[] nonce) throws Exception {
         ByteArrayOutputStream plaintext = new ByteArrayOutputStream();
         
         for(int i=0; i<ciphertext.length; i+=16) {
@@ -445,8 +445,8 @@ ByteArrayOutputStream metadata = new ByteArrayOutputStream();
         return plaintext.toByteArray();
     }
 
-    private byte[] encrypt_AES(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
-        return decrypt_AES(plaintext, block_num, fek, nonce); // _AES uses same logic for encrypt/decrypt
+    private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
+        return decryptCTR(plaintext, block_num, fek, nonce); // CTR uses same logic for encrypt/decrypt
     }
 
     
