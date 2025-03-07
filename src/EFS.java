@@ -4,16 +4,11 @@
  * @email hxc230046@utdallas.edu
  */
 
-
 import java.nio.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.security.*;
 import java.util.*;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-
 import java.io.*;
 
 
@@ -340,14 +335,9 @@ ByteArrayOutputStream metadata = new ByteArrayOutputStream();
         metadata_data.write(nonce);
         metadata_data.write(ByteBuffer.allocate(4).putInt(file_length).array());
         
-        Mac hmac=Mac.getInstance("HmacSHA256");
-        hmac.init(new SecretKeySpec(mk,"HmacSHA256"));
+        //Mac hmac=Mac.getInstance("HmacSHA256");
+        //hmac.init(new SecretKeySpec(mk,"HmacSHA256"));
 
-        /*if(!MessageDigest.isEqual(hmac.doFinal(metadata_data.toByteArray()),mac_stored))
-        {
-            throw new Exception("Metadata verification failed");
-        
-        }*/
         byte[] computedMac = computeHmac(metadata_data.toByteArray(), mk);
         if (!MessageDigest.isEqual(computedMac, mac_stored)) {
             throw new PasswordIncorrectException(); // Changed exception type
