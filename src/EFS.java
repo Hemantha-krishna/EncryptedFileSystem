@@ -1,9 +1,26 @@
-import java.nio.*;
+/*import java.nio.*;
 import java.nio.file.*;
-import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.io.*;
+import java.io.*;*/
+
+// java.nio
+import java.nio.ByteBuffer;       // For byte buffer operations
+import java.nio.file.Path;        // For file path handling
+import java.nio.file.Paths;       // For creating Path objects
+import java.nio.file.Files;       // For file I/O operations
+
+// java.nio.charset
+import java.nio.charset.StandardCharsets; // For UTF-8 encoding
+
+// java.util
+import java.util.Arrays;          // For array manipulation
+
+// java.io
+import java.io.ByteArrayOutputStream; // For byte stream operations
+import java.io.IOException;       // For exception handling
+//import java.io.File;              // For file operations
+
 
 public class EFS extends Utility {
     private static final int BLOCK_SIZE = 1024;
@@ -343,9 +360,17 @@ private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] no
     byte[] storedMac = Arrays.copyOfRange(blockData, 0, MAC_SIZE);
     byte[] ciphertext = Arrays.copyOfRange(blockData, MAC_SIZE, BLOCK_SIZE);
     byte[] computedMac = computeHmac(concat(intToBytes(blockNum), ciphertext), mk);
-    
-    if (!MessageDigest.isEqual(storedMac, computedMac)) {
+    if (!constantTimeCompare(storedMac, computedMac)) {
         throw new Exception("MAC verification failed");
     }
+    
+}
+private boolean constantTimeCompare(byte[] a, byte[] b) {
+    if (a.length != b.length) return false;
+    int result = 0;
+    for (int i = 0; i < a.length; i++) {
+        result |= a[i] ^ b[i];
+    }
+    return result == 0;
 }
 }
