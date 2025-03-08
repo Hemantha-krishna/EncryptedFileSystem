@@ -212,7 +212,7 @@ public class EFS extends Utility {
         int file_length;
     }
 
-    /*private Metadata validatePwd(String file_name, String password) throws Exception {
+    private Metadata validatePwd(String file_name, String password) throws Exception {
         byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
         if (metadata.length != BLOCK_SIZE) throw new Exception("Invalid metadata");
 
@@ -251,42 +251,9 @@ public class EFS extends Utility {
         meta.nonce = nonce;
         meta.file_length = file_length;
         return meta;
-    }*/
-
-    private Metadata validatePwd(String file_name, String enteredPassword) throws Exception {
-        byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
-        
-        // Extract components
-        byte[] salt = Arrays.copyOfRange(metadata, USERNAME_MAX, USERNAME_MAX + SALT_SIZE);
-        byte[] encryptedKeys = Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE);
-        byte[] nonce = Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE);
-        byte[] storedMac = Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE + MAC_SIZE);
-    
-        // Derive KEK
-        byte[] kek = pbkdf2(enteredPassword.toCharArray(), salt, PBKDF2_ITERATIONS, 16);
-    
-        // Decrypt FEK + MK
-        byte[] decryptedKeys = decrypt_AES(encryptedKeys, kek);
-        byte[] fek = Arrays.copyOfRange(decryptedKeys, 0, FEK_SIZE);
-        byte[] mk = Arrays.copyOfRange(decryptedKeys, FEK_SIZE, FEK_SIZE + MK_SIZE);
-    
-        // Verify HMAC over the original 192 bytes (username + salt + encryptedKeys + nonce + file_length)
-        byte[] metadataWithoutMac = Arrays.copyOfRange(metadata, 0, 192); // Corrected to 192 bytes
-        byte[] computedMac = computeHmac(metadataWithoutMac, mk);
-    
-        if (!constantTimeCompare(computedMac, storedMac)) {
-            throw new PasswordIncorrectException();
-        }
-    
-        Metadata meta = new Metadata();
-        meta.fek = fek;
-        meta.mk = mk;
-        meta.nonce = nonce;
-        meta.file_length = ByteBuffer.wrap(
-            Arrays.copyOfRange(metadata, 188, 192) // Position of file_length in metadata
-        ).getInt();
-        return meta;
     }
+
+
 
     private void updateMetadata(String file_name, String password, int new_length, Metadata meta) throws Exception {
         byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
