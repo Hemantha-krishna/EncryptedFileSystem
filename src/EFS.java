@@ -254,37 +254,37 @@ public class EFS extends Utility {
     }*/
 
     private Metadata validatePwd(String file_name, String enteredPassword) throws Exception {
-        // Read metadata block (block 0)
         byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
-    
-        // Extract salt and encrypted FEK+MK from metadata
+        
+        // Extract components
         byte[] salt = Arrays.copyOfRange(metadata, USERNAME_MAX, USERNAME_MAX + SALT_SIZE);
         byte[] encryptedKeys = Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE);
+        byte[] nonce = Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE);
+        byte[] storedMac = Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE + MAC_SIZE);
     
-        // Derive KEK using the enteredPassword and salt
+        // Derive KEK
         byte[] kek = pbkdf2(enteredPassword.toCharArray(), salt, PBKDF2_ITERATIONS, 16);
     
-        // Decrypt FEK + MK using KEK
+        // Decrypt FEK + MK
         byte[] decryptedKeys = decrypt_AES(encryptedKeys, kek);
         byte[] fek = Arrays.copyOfRange(decryptedKeys, 0, FEK_SIZE);
         byte[] mk = Arrays.copyOfRange(decryptedKeys, FEK_SIZE, FEK_SIZE + MK_SIZE);
     
-        // Verify HMAC of metadata using MK
-        ByteArrayOutputStream metadataWithoutMac = new ByteArrayOutputStream();
-        metadataWithoutMac.write(metadata, 0, metadata.length - MAC_SIZE);
-        byte[] computedMac = computeHmac(metadataWithoutMac.toByteArray(), mk);
-        byte[] storedMac = Arrays.copyOfRange(metadata, metadata.length - MAC_SIZE, metadata.length);
+        // Verify HMAC over the original 192 bytes (username + salt + encryptedKeys + nonce + file_length)
+        byte[] metadataWithoutMac = Arrays.copyOfRange(metadata, 0, 192); // Corrected to 192 bytes
+        byte[] computedMac = computeHmac(metadataWithoutMac, mk);
     
         if (!constantTimeCompare(computedMac, storedMac)) {
             throw new PasswordIncorrectException();
         }
     
-        // Return decrypted keys and metadata
         Metadata meta = new Metadata();
         meta.fek = fek;
         meta.mk = mk;
-        meta.nonce = Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE);
-        meta.file_length = ByteBuffer.wrap(Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE + 4)).getInt();
+        meta.nonce = nonce;
+        meta.file_length = ByteBuffer.wrap(
+            Arrays.copyOfRange(metadata, 188, 192) // Position of file_length in metadata
+        ).getInt();
         return meta;
     }
 
