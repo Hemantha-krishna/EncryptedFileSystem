@@ -311,7 +311,10 @@ public class EFS extends Utility {
             byte[] prev = block.clone();
             for (int j = 1; j < iterations; j++) {
                 prev = hmacSha256(password, prev);
-                xor(block, prev);
+                //xor(block, prev);
+                for (int k = 0; k < block.length; k++) {
+                    block[k] ^= prev[k];
+                }
             }
             System.arraycopy(block, 0, key, (i - 1) * 32, Math.min(32, key.length - (i - 1) * 32));
         }
