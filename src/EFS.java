@@ -30,7 +30,7 @@ public class EFS extends Utility {
             throw new Exception("File already exists");
         }
 
-        // Generate cryptographic materials using Utility functions
+        
         byte[] salt = secureRandomNumber(SALT_SIZE);
         byte[] nonce = secureRandomNumber(NONCE_SIZE);
         byte[] fek = secureRandomNumber(FEK_SIZE);
@@ -194,7 +194,7 @@ public class EFS extends Utility {
         updateMetadata(file_name, password, length, meta);
     }
 
-    // ================== Helper Methods ==================
+    
     private static class Metadata {
         byte[] fek;
         byte[] mk;
@@ -256,7 +256,7 @@ public class EFS extends Utility {
         Files.write(Paths.get(file_name, "0"), metadata);
     }
 
-    // ================== Cryptographic Helpers ==================
+    
     private byte[] pbkdf2(char[] password, byte[] salt, int iterations, int keyLength) throws Exception {
         byte[] key = new byte[keyLength];
         int blocks = (keyLength + 31) / 32; // SHA-256 produces 32-byte hashes
@@ -291,27 +291,13 @@ public class EFS extends Utility {
         return hash_SHA256(concat(oKeyPad, innerHash));
     }
 
-    /*private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) {
-        ByteBuffer ivBuffer = ByteBuffer.allocate(16);
-        ivBuffer.put(nonce);
-        ivBuffer.putInt(block_num);
-        byte[] counter = ivBuffer.array();
-
-        byte[] keystream = encrypt_AES(counter, fek);
-        byte[] ciphertext = new byte[plaintext.length];
-        for (int i = 0; i < plaintext.length; i++) {
-            ciphertext[i] = (byte) (plaintext[i] ^ keystream[i % 16]); // XOR with keystream
-        }
-        return ciphertext;
-    }*/
-    // Replace all instances of Cipher with:
 private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
     ByteBuffer ivBuffer = ByteBuffer.allocate(16);
     ivBuffer.put(nonce);
     ivBuffer.putInt(block_num);
     byte[] counter = ivBuffer.array();
 
-    byte[] keystream = Utility.encrypt_AES(counter, fek);
+    byte[] keystream = encrypt_AES(counter, fek);
     byte[] ciphertext = new byte[plaintext.length];
     for (int i = 0; i < plaintext.length; i++) {
         ciphertext[i] = (byte) (plaintext[i] ^ keystream[i % 16]);
@@ -323,7 +309,7 @@ private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] no
         return encryptCTR(ciphertext, block_num, fek, nonce); // CTR is symmetric
     }
 
-    // ================== Utility Helpers ==================
+   
     private byte[] padUsername(String username) {
         return Arrays.copyOf(username.getBytes(StandardCharsets.UTF_8), USERNAME_MAX);
     }
