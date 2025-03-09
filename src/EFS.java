@@ -425,22 +425,34 @@ public class EFS extends Utility {
 }*/
 private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
     ByteArrayOutputStream ciphertextStream = new ByteArrayOutputStream();
-    int numChunks = (plaintext.length + 15) / 16; // Number of 16-byte chunks
-    for (int i = 0; i < numChunks; i++) {
-        // Create counter: nonce (12) + block_num (4) + chunk index (4)
+    int numChunks = (plaintext.length + 15) / 16; // 16-byte chunks
+    for (int chunkIdx = 0; chunkIdx < numChunks; chunkIdx++) {
+        // Correct counter: nonce(12) + block_num(4)
         ByteBuffer counterBuf = ByteBuffer.allocate(16);
-        counterBuf.put(nonce);
-        counterBuf.putInt(block_num);
-        counterBuf.putInt(i); // Increment for each chunk
+        counterBuf.put(nonce); // 12 bytes
+        counterBuf.putInt(block_num); // 4 bytes (now total 16 bytes)
         byte[] counter = counterBuf.array();
         
+        // Increment counter by chunk index for each 16-byte chunk
+        incrementCounter(counter, chunkIdx);
+        
         byte[] keystream = encrypt_AES(counter, fek);
-        int chunkLength = Math.min(16, plaintext.length - i * 16);
-        byte[] chunk = Arrays.copyOfRange(plaintext, i * 16, i * 16 + chunkLength);
+        int chunkStart = chunkIdx * 16;
+        int chunkEnd = Math.min(chunkStart + 16, plaintext.length);
+        byte[] chunk = Arrays.copyOfRange(plaintext, chunkStart, chunkEnd);
         byte[] encryptedChunk = xorBytes(chunk, keystream);
         ciphertextStream.write(encryptedChunk);
     }
     return ciphertextStream.toByteArray();
+}
+
+// Helper to increment counter by chunk index
+private void incrementCounter(byte[] counter, int chunkIdx) {
+    int offset = 12; // Start after nonce
+    int current = ByteBuffer.wrap(counter, offset, 4).getInt();
+    current += chunkIdx;
+    byte[] newCount = ByteBuffer.allocate(4).putInt(current).array();
+    System.arraycopy(newCount, 0, counter, offset, 4);
 }
 
     // decryptCTR uses identical logic to encryptCTR (CTR is symmetric)
