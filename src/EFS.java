@@ -51,13 +51,16 @@ public class EFS extends Utility {
         // Encrypt FEK + MK using AES-ECB
         byte[] encryptedKeys = encrypt_AES(concat(fek, mk), kek);
 
+        // Encrypt initial file length (0)
+        byte[] encryptedLength = encrypt_AES(intToBytes(0), fek);
+
         // Build metadata
         ByteArrayOutputStream metadata = new ByteArrayOutputStream();
         metadata.write(padUsername(user_name));
         metadata.write(salt);
         metadata.write(encryptedKeys);
         metadata.write(nonce);
-        metadata.write(intToBytes(0)); // Initial length = 0
+        metadata.write(encryptedLength); // Encrypted file length
 
         // Compute HMAC-SHA256
         byte[] mac = computeHmac(metadata.toByteArray(), mk);
@@ -220,9 +223,11 @@ public class EFS extends Utility {
         int file_length;
     }
 
-    private Metadata validatePwd(String file_name, String password) throws Exception {
+    /*private Metadata validatePwd(String file_name, String password) throws Exception {
         byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
         if (metadata.length != BLOCK_SIZE) throw new Exception("Invalid metadata");
+
+        
 
         // Parse components
         byte[] username = Arrays.copyOfRange(metadata, 0, USERNAME_MAX);
@@ -260,10 +265,71 @@ public class EFS extends Utility {
         meta.file_length = file_length;
         return meta;
     }
+     */
+
+     private Metadata validatePwd(String file_name, String password) throws Exception {
+        // Read entire metadata block (1024 bytes)
+        byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
+        if (metadata.length != BLOCK_SIZE) {
+            throw new Exception("Invalid metadata block size");
+        }
+    
+        // Parse components with new encrypted length structure
+        final int BASE_OFFSET = USERNAME_MAX + SALT_SIZE;
+        byte[] username = Arrays.copyOfRange(metadata, 0, USERNAME_MAX);
+        byte[] salt = Arrays.copyOfRange(metadata, USERNAME_MAX, USERNAME_MAX + SALT_SIZE);
+        byte[] encryptedKeys = Arrays.copyOfRange(metadata, BASE_OFFSET, BASE_OFFSET + FEK_SIZE + MK_SIZE);
+        byte[] nonce = Arrays.copyOfRange(metadata, BASE_OFFSET + FEK_SIZE + MK_SIZE, 
+                                          BASE_OFFSET + FEK_SIZE + MK_SIZE + NONCE_SIZE);
+        byte[] encryptedLength = Arrays.copyOfRange(metadata, 
+                                          BASE_OFFSET + FEK_SIZE + MK_SIZE + NONCE_SIZE,
+                                          BASE_OFFSET + FEK_SIZE + MK_SIZE + NONCE_SIZE + 16);
+        byte[] storedMac = Arrays.copyOfRange(metadata, 
+                                          BASE_OFFSET + FEK_SIZE + MK_SIZE + NONCE_SIZE + 16,
+                                          BASE_OFFSET + FEK_SIZE + MK_SIZE + NONCE_SIZE + 16 + MAC_SIZE);
+    
+        // Derive KEK using PBKDF2
+        byte[] kek = pbkdf2(password.toCharArray(), salt, PBKDF2_ITERATIONS, 16);
+    
+        // Decrypt FEK and MK
+        byte[] keys = decrypt_AES(encryptedKeys, kek);
+        if (keys.length != FEK_SIZE + MK_SIZE) {
+            throw new PasswordIncorrectException();
+        }
+        byte[] fek = Arrays.copyOfRange(keys, 0, FEK_SIZE);
+        byte[] mk = Arrays.copyOfRange(keys, FEK_SIZE, FEK_SIZE + MK_SIZE);
+    
+        // Decrypt file length
+        byte[] decryptedLength = decrypt_AES(encryptedLength, fek);
+        int file_length = ByteBuffer.wrap(decryptedLength).getInt();
+    
+        // Verify HMAC
+        ByteArrayOutputStream hmacData = new ByteArrayOutputStream();
+        hmacData.write(username);
+        hmacData.write(salt);
+        hmacData.write(encryptedKeys);
+        hmacData.write(nonce);
+        hmacData.write(encryptedLength);
+        
+        byte[] computedMac = computeHmac(hmacData.toByteArray(), mk);
+        
+        if (!constantTimeCompare(storedMac, computedMac)) {
+            throw new PasswordIncorrectException();
+        }
+    
+        // Return validated metadata
+        Metadata meta = new Metadata();
+        meta.fek = fek;
+        meta.mk = mk;
+        meta.nonce = nonce;
+        meta.file_length = file_length;
+        return meta;
+    }
+    
 
 
     // Updates file metadata with new length and recomputes HMAC
-    private void updateMetadata(String file_name, String password, int new_length, Metadata meta) throws Exception {
+    /*private void updateMetadata(String file_name, String password, int new_length, Metadata meta) throws Exception {
         byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
         System.arraycopy(intToBytes(new_length), 0, metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE, 4);
 
@@ -273,6 +339,36 @@ public class EFS extends Utility {
         byte[] newMac = computeHmac(metadataData.toByteArray(), meta.mk);
         System.arraycopy(newMac, 0, metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE + 4, MAC_SIZE);
 
+        Files.write(Paths.get(file_name, "0"), metadata);
+    }*/
+    private void updateMetadata(String file_name, String password, int new_length, Metadata meta) throws Exception {
+        // Encrypt new length
+        byte[] encryptedLength = encrypt_AES(intToBytes(new_length), meta.fek);
+    
+        // Read existing metadata
+        byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
+        
+        // Update encrypted length
+        System.arraycopy(
+            encryptedLength, 0,
+            metadata, 
+            USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE,
+            encryptedLength.length
+        );
+    
+        // Recompute HMAC
+        ByteArrayOutputStream metadataData = new ByteArrayOutputStream();
+        metadataData.write(metadata, 0, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE + 16);
+        byte[] newMac = computeHmac(metadataData.toByteArray(), meta.mk);
+        
+        // Update HMAC in metadata
+        System.arraycopy(
+            newMac, 0,
+            metadata, 
+            USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE + 16,
+            MAC_SIZE
+        );
+    
         Files.write(Paths.get(file_name, "0"), metadata);
     }
 
@@ -314,7 +410,7 @@ public class EFS extends Utility {
     }
 
     //CTR mode encryption using AES
-    private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
+    /*private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
     ByteBuffer ivBuffer = ByteBuffer.allocate(16);
     ivBuffer.put(nonce);
     ivBuffer.putInt(block_num);
@@ -326,13 +422,39 @@ public class EFS extends Utility {
         ciphertext[i] = (byte) (plaintext[i] ^ keystream[i % 16]);
     }
     return ciphertext;
+}*/
+private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
+    ByteArrayOutputStream ciphertextStream = new ByteArrayOutputStream();
+    int numChunks = (plaintext.length + 15) / 16; // Number of 16-byte chunks
+    for (int i = 0; i < numChunks; i++) {
+        // Create counter: nonce (12) + block_num (4) + chunk index (4)
+        ByteBuffer counterBuf = ByteBuffer.allocate(16);
+        counterBuf.put(nonce);
+        counterBuf.putInt(block_num);
+        counterBuf.putInt(i); // Increment for each chunk
+        byte[] counter = counterBuf.array();
+        
+        byte[] keystream = encrypt_AES(counter, fek);
+        int chunkLength = Math.min(16, plaintext.length - i * 16);
+        byte[] chunk = Arrays.copyOfRange(plaintext, i * 16, i * 16 + chunkLength);
+        byte[] encryptedChunk = xorBytes(chunk, keystream);
+        ciphertextStream.write(encryptedChunk);
+    }
+    return ciphertextStream.toByteArray();
 }
 
     // decryptCTR uses identical logic to encryptCTR (CTR is symmetric)
     private byte[] decryptCTR(byte[] ciphertext, int block_num, byte[] fek, byte[] nonce) throws Exception {
         return encryptCTR(ciphertext, block_num, fek, nonce); 
     }
-
+    
+    private byte[] xorBytes(byte[] a, byte[] b) {
+        byte[] result = new byte[a.length];
+        for (int i = 0; i < a.length; i++) {
+            result[i] = (byte) (a[i] ^ b[i % b.length]);
+        }
+        return result;
+    }
    
     private byte[] padUsername(String username) {
         return Arrays.copyOf(username.getBytes(StandardCharsets.UTF_8), USERNAME_MAX);
@@ -359,7 +481,7 @@ public class EFS extends Utility {
         }
     }
 
-    private void verifyMac(byte[] blockData, int blockNum, byte[] mk) throws Exception {
+    /*private void verifyMac(byte[] blockData, int blockNum, byte[] mk) throws Exception {
     if (blockData.length != BLOCK_SIZE) {
         throw new Exception("Invalid block size");
     }
@@ -371,6 +493,25 @@ public class EFS extends Utility {
         throw new Exception("MAC verification failed");
     }
     
+}*/
+private void verifyMac(byte[] blockData, int blockNum, byte[] mk) throws Exception {
+    if (blockData.length != BLOCK_SIZE) {
+        throw new Exception("Invalid block size");
+    }
+    
+    byte[] storedMac = Arrays.copyOfRange(blockData, 0, MAC_SIZE);
+    byte[] ciphertext = Arrays.copyOfRange(blockData, MAC_SIZE, BLOCK_SIZE);
+    
+    // Include block number in MAC computation
+    ByteArrayOutputStream macData = new ByteArrayOutputStream();
+    macData.write(intToBytes(blockNum));
+    macData.write(ciphertext);
+    
+    byte[] computedMac = computeHmac(macData.toByteArray(), mk);
+    
+    if (!constantTimeCompare(storedMac, computedMac)) {
+        throw new Exception("MAC verification failed");
+    }
 }
 //Constant-time HMAC comparison
 private boolean constantTimeCompare(byte[] a, byte[] b) {
