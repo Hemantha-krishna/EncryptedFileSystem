@@ -51,13 +51,19 @@
          // Encrypt FEK + MK using AES-ECB
          byte[] encryptedKeys = encrypt_AES(concat(fek, mk), kek);
  
+         
          // Build metadata
          ByteArrayOutputStream metadata = new ByteArrayOutputStream();
          metadata.write(padUsername(user_name));
          metadata.write(salt);
          metadata.write(encryptedKeys);
          metadata.write(nonce);
-         metadata.write(intToBytes(0)); // Initial length = 0
+
+         // Encrypt the initial file length (0) using FEK
+        byte[] lengthBytes = intToBytes(0);
+        byte[] encryptedLength = encrypt_AES(lengthBytes, fek);
+        metadata.write(encryptedLength); // 16 bytes for AES block
+
  
          // Compute HMAC-SHA256
          byte[] mac = computeHmac(metadata.toByteArray(), mk);
@@ -257,7 +263,12 @@
          meta.fek = fek;
          meta.mk = mk;
          meta.nonce = nonce;
-         meta.file_length = file_length;
+
+         // Read encrypted length and decrypt
+        byte[] encryptedLength = Arrays.copyOfRange(metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE + 16);
+        byte[] decryptedLength = decrypt_AES(encryptedLength, meta.fek);
+
+         meta.file_length = ByteBuffer.wrap(decryptedLength).getInt();
          return meta;
      }
  
