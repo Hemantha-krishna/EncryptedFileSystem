@@ -14,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;       
 
 public class EFS extends Utility {
+    // Constants
     private static final int BLOCK_SIZE = 1024;
     private static final int SALT_SIZE = 16;
     private static final int FEK_SIZE = 16;
@@ -44,7 +45,7 @@ public class EFS extends Utility {
         byte[] fek = secureRandomNumber(FEK_SIZE);
         byte[] mk = secureRandomNumber(MK_SIZE);
 
-        // Derive KEK using PBKDF2-HMAC-SHA256
+        // // Derive Key Encryption Key (KEK) using PBKDF2
         byte[] kek = pbkdf2(password.toCharArray(), salt, PBKDF2_ITERATIONS, 16);
 
         // Encrypt FEK + MK using AES-ECB
@@ -82,6 +83,8 @@ public class EFS extends Utility {
     @Override
     public byte[] read(String file_name, int starting_position, int len, String password) throws Exception {
         Metadata meta = validatePwd(file_name, password);
+        
+        // Read boundaries
         if (starting_position < 0 || starting_position >= meta.file_length || len < 0 || starting_position + len > meta.file_length) {
             throw new Exception("Invalid read position/length");
         }
@@ -99,6 +102,7 @@ public class EFS extends Utility {
             byte[] block_data = Files.readAllBytes(block_path);
             verifyMac(block_data, block_num, meta.mk);
 
+            // Decrypt and extract needed data
             byte[] ciphertext = Arrays.copyOfRange(block_data, MAC_SIZE, BLOCK_SIZE);
             byte[] plaintext = decryptCTR(ciphertext, block_num, meta.fek, meta.nonce);
 
@@ -131,10 +135,12 @@ public class EFS extends Utility {
                 existing_data = decryptCTR(ciphertext, block_num, meta.fek, meta.nonce);
             }
 
+             // Merge new content and encrypt
             System.arraycopy(content, content_offset, existing_data, block_offset, write_len);
             byte[] ciphertext = encryptCTR(existing_data, block_num, meta.fek, meta.nonce);
             byte[] mac = computeHmac(concat(intToBytes(block_num), ciphertext), meta.mk);
 
+            // Write updated block
             ByteArrayOutputStream block_data = new ByteArrayOutputStream();
             block_data.write(mac);
             block_data.write(ciphertext);
@@ -145,6 +151,7 @@ public class EFS extends Utility {
             remaining -= write_len;
         }
 
+        // Updateing metadata if file expanded
         if (new_length > meta.file_length) {
             updateMetadata(file_name, password, new_length, meta);
         }
@@ -186,10 +193,12 @@ public class EFS extends Utility {
             byte[] block_data = Files.readAllBytes(block_path);
             verifyMac(block_data, new_blocks, meta.mk);
 
+            // Decrypt and truncate
             byte[] ciphertext = Arrays.copyOfRange(block_data, MAC_SIZE, BLOCK_SIZE);
             byte[] plaintext = decryptCTR(ciphertext, new_blocks, meta.fek, meta.nonce);
             byte[] truncated = Arrays.copyOf(plaintext, length % DATA_PER_BLOCK);
 
+            // Re-encrypt and write back
             byte[] padded = Arrays.copyOf(truncated, DATA_PER_BLOCK);
             byte[] new_ciphertext = encryptCTR(padded, new_blocks, meta.fek, meta.nonce);
             byte[] new_mac = computeHmac(concat(intToBytes(new_blocks), new_ciphertext), meta.mk);
@@ -205,8 +214,8 @@ public class EFS extends Utility {
 
     
     private static class Metadata {
-        byte[] fek;
-        byte[] mk;
+        byte[] fek; // File Encryption Key
+        byte[] mk;  // MAC Key
         byte[] nonce;
         int file_length;
     }
@@ -253,7 +262,7 @@ public class EFS extends Utility {
     }
 
 
-
+    // Updates file metadata with new length and recomputes HMAC
     private void updateMetadata(String file_name, String password, int new_length, Metadata meta) throws Exception {
         byte[] metadata = Files.readAllBytes(Paths.get(file_name, "0"));
         System.arraycopy(intToBytes(new_length), 0, metadata, USERNAME_MAX + SALT_SIZE + FEK_SIZE + MK_SIZE + NONCE_SIZE, 4);
@@ -267,7 +276,7 @@ public class EFS extends Utility {
         Files.write(Paths.get(file_name, "0"), metadata);
     }
 
-    
+    //Custom PBKDF2 implementation
     private byte[] pbkdf2(char[] password, byte[] salt, int iterations, int keyLength) throws Exception {
         byte[] key = new byte[keyLength];
         int blocks = (keyLength + 31) / 32; // SHA-256 produces 32-byte hashes
@@ -290,6 +299,7 @@ public class EFS extends Utility {
         return computeHmac(data, keyBytes);
     }
 
+    //Computes hmac using SHA-256
     private byte[] computeHmac(byte[] data, byte[] key) throws Exception {
         int blockSize = 64; // SHA-256 block size
         byte[] paddedKey = key.length > blockSize ? hash_SHA256(key) : Arrays.copyOf(key, blockSize);
@@ -303,7 +313,8 @@ public class EFS extends Utility {
         return hash_SHA256(concat(oKeyPad, innerHash));
     }
 
-private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
+    //CTR mode encryption using AES
+    private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
     ByteBuffer ivBuffer = ByteBuffer.allocate(16);
     ivBuffer.put(nonce);
     ivBuffer.putInt(block_num);
@@ -317,8 +328,9 @@ private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] no
     return ciphertext;
 }
 
+    // decryptCTR uses identical logic to encryptCTR (CTR is symmetric)
     private byte[] decryptCTR(byte[] ciphertext, int block_num, byte[] fek, byte[] nonce) throws Exception {
-        return encryptCTR(ciphertext, block_num, fek, nonce); // CTR is symmetric
+        return encryptCTR(ciphertext, block_num, fek, nonce); 
     }
 
    
@@ -360,6 +372,7 @@ private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] no
     }
     
 }
+//Constant-time HMAC comparison
 private boolean constantTimeCompare(byte[] a, byte[] b) {
     if (a.length != b.length) return false;
     int result = 0;

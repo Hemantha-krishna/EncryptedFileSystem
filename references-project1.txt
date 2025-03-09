@@ -1,0 +1,15 @@
+References
+
+1. Dan Boneh and Victor Shoup: A Graduate Course in Applied Cryptography.
+2. Charles R. Pleeger and Shari Lawrence Pfleeger: Security in Computing, Third or Fourth Edition, Prentice Hall.
+3. NIST Special Publication 800-38A – Recommendation for Block Cipher Modes of Operation – Methods and Techniques.
+	Available at: https://csrc.nist.gov/publications/detail/sp/800-38a/final
+4. Wikipedia Articles:
+	o AES (Advanced Encryption Standard) – https://en.wikipedia.org/wiki/Advanced_Encryption_Standard
+	o Block cipher mode of operation - https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
+	o CTR Mode (Counter Mode) – https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#CTR
+	o HMAC – https://en.wikipedia.org/wiki/HMAC
+5. YouTube videos:
+	o AES Explained (Advanced Encryption Standard) – Computerphile https://www.youtube.com/watch?v=O4xNJsjtN6E
+	o Modes of Operation - Computerphile https://www.youtube.com/watch?v=Rk0NIQfEXBA
+	o Counter Mode (CTR) https://www.youtube.com/watch?v=zX0PZtqerCI
