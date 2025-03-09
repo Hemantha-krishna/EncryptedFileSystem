@@ -325,7 +325,7 @@
      }
  
      //CTR mode encryption using AES
-     /*private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
+     private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
      ByteBuffer ivBuffer = ByteBuffer.allocate(16);
      ivBuffer.put(nonce);
      ivBuffer.putInt(block_num);
@@ -337,37 +337,8 @@
          ciphertext[i] = (byte) (plaintext[i] ^ keystream[i % 16]);
      }
      return ciphertext;
- }*/
+ }
  
- // Updated CTR mode encryption using AES that properly increments for each 16-byte segment
-private byte[] encryptCTR(byte[] plaintext, int block_num, byte[] fek, byte[] nonce) throws Exception {
-    int blockSize = 16;  // AES block size
-    int numSegments = (plaintext.length + blockSize - 1) / blockSize;
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-
-    for (int segment = 0; segment < numSegments; segment++) {
-        // Create a unique counter value for each segment.
-        // Here, we combine block_num and segment using a multiplier (e.g., 1000)
-        // so that each counter block is distinct.
-        int combinedCounter = block_num * 1000 + segment;
-        ByteBuffer counterBuffer = ByteBuffer.allocate(16);
-        counterBuffer.put(nonce);          // 12-byte nonce
-        counterBuffer.putInt(combinedCounter); // 4-byte counter
-        byte[] counterBlock = counterBuffer.array();
-
-        // Generate keystream for this segment
-        byte[] keystreamBlock = encrypt_AES(counterBlock, fek);
-
-        // Process the current 16-byte segment
-        int offset = segment * blockSize;
-        int chunkLen = Math.min(blockSize, plaintext.length - offset);
-        for (int i = 0; i < chunkLen; i++) {
-            output.write(plaintext[offset + i] ^ keystreamBlock[i]);
-        }
-    }
-    return output.toByteArray();
-}
-
      // decryptCTR uses identical logic to encryptCTR (CTR is symmetric)
      private byte[] decryptCTR(byte[] ciphertext, int block_num, byte[] fek, byte[] nonce) throws Exception {
          return encryptCTR(ciphertext, block_num, fek, nonce); 
