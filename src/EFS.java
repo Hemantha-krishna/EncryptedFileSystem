@@ -4,15 +4,14 @@
  * @email hxc230046@utdallas.edu
  */
 
-
-import java.nio.ByteBuffer;       // For byte buffer operations
-import java.nio.file.Path;        // For file path handling
-import java.nio.file.Paths;       // For creating Path objects
-import java.nio.file.Files;       // For file I/O operations
-import java.nio.charset.StandardCharsets; // For UTF-8 encoding
-import java.util.Arrays;          // For array manipulation
-import java.io.ByteArrayOutputStream; // For byte stream operations
-import java.io.IOException;       // For exception handling
+import java.nio.ByteBuffer;       
+import java.nio.file.Path;        
+import java.nio.file.Paths;       
+import java.nio.file.Files;       
+import java.nio.charset.StandardCharsets; 
+import java.util.Arrays;          
+import java.io.ByteArrayOutputStream; 
+import java.io.IOException;       
 
 public class EFS extends Utility {
     private static final int BLOCK_SIZE = 1024;
@@ -278,10 +277,8 @@ public class EFS extends Utility {
             byte[] prev = block.clone();
             for (int j = 1; j < iterations; j++) {
                 prev = hmacSha256(password, prev);
-                //xor(block, prev);
-                for (int k = 0; k < block.length; k++) {
-                    block[k] ^= prev[k];
-                }
+                xor(block, prev);
+                
             }
             System.arraycopy(block, 0, key, (i - 1) * 32, Math.min(32, key.length - (i - 1) * 32));
         }
