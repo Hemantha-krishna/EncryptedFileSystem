@@ -365,6 +365,7 @@ public class EFS extends Utility {
         }
     }
 
+    // Verifies MAC of a block
     private void verifyMac(byte[] blockData, int blockNum, byte[] mk) throws Exception {
         if (blockData.length != BLOCK_SIZE) {
             throw new Exception("Invalid block size");
